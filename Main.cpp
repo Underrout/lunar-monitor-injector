@@ -1,19 +1,18 @@
 #define DLL_PATH "lunar-monitor.dll"
 
 #include <string>
-#include <fstream>
 #include <Windows.h>
 #include <strsafe.h>
 
 #include "InjectDLL.h"
 
 HWND gLmWindowHandle;
-HWINEVENTHOOK gCloseEventHook;
-BOOL exitNow = false;
 
 int main(int argc, char* argv[])
 {
-	HWND gLmWindowHandle = (HWND)std::stoull(argv[1], 0, 16);
+	std::string str = argv[1];
+	HWND gLmWindowHandle = (HWND)std::stoull(str, 0, 16);
+	DWORD verificationCode = (DWORD)(std::stoi(str.substr(str.find_first_of(':') + 1), 0, 16));
 	DWORD pId;
 
 	if (gLmWindowHandle != NULL)
@@ -27,7 +26,42 @@ int main(int argc, char* argv[])
 
 		if (processHandle != NULL)
 		{
+			HANDLE pipe = CreateNamedPipe(
+				L"\\\\.\\pipe\\lunar_monitor_pipe", // name of the pipe
+				PIPE_ACCESS_OUTBOUND, // 1-way pipe -- send only
+				PIPE_TYPE_BYTE, // send data as a byte stream
+				1, // only allow 1 instance of this pipe
+				0, // no outbound buffer
+				0, // no inbound buffer
+				0, // use default wait time
+				NULL // use default security attributes
+			);
+
 			InjectDLL(TEXT(DLL_PATH), processHandle);
+
+			if (pipe != NULL && pipe != INVALID_HANDLE_VALUE)
+			{
+				BOOL result = ConnectNamedPipe(pipe, NULL);
+				if (result)
+				{
+					WriteFile(
+						pipe,
+						&gLmWindowHandle,
+						sizeof(HWND),
+						NULL,
+						NULL
+					);
+
+					WriteFile(
+						pipe,
+						&verificationCode,
+						sizeof(DWORD),
+						NULL,
+						NULL
+					);
+				}
+				CloseHandle(pipe);
+			}
 
 			DWORD dw = WaitForSingleObject(processHandle, INFINITE);
 
