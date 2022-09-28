@@ -1,8 +1,13 @@
-#define DLL_PATH "lunar-monitor.dll"
-
 #include <string>
 #include <Windows.h>
 #include <strsafe.h>
+
+#include <filesystem>
+#include <format>
+
+#include <iostream>
+
+constexpr const char* DLL_PATH = "{}/lunar_monitor/DLLs/lunar-monitor-{}.dll";
 
 #include "InjectDLL.h"
 
@@ -10,10 +15,13 @@ HWND gLmWindowHandle;
 
 int main(int argc, char* argv[])
 {
-	std::string str = argv[1];
-	HWND gLmWindowHandle = (HWND)std::stoull(str, 0, 16);
-	DWORD verificationCode = (DWORD)(std::stoi(str.substr(str.find_first_of(':') + 1), 0, 16));
+	std::string confirmation_code = argv[1];
+	HWND gLmWindowHandle = (HWND)std::stoull(confirmation_code, 0, 16);
+	DWORD verificationCode = (DWORD)(std::stoi(confirmation_code.substr(confirmation_code.find_first_of(':') + 1), 0, 16));
 	DWORD pId;
+
+	std::string lunar_dir = argv[3];
+	lunar_dir = lunar_dir.substr(0, lunar_dir.size() - 1);
 
 	if (gLmWindowHandle != NULL)
 	{
@@ -37,7 +45,14 @@ int main(int argc, char* argv[])
 				NULL // use default security attributes
 			);
 
-			InjectDLL(TEXT(DLL_PATH), processHandle);
+			std::filesystem::path dll_path = std::format(DLL_PATH, lunar_dir, argv[2]);
+
+			if (!std::filesystem::exists(dll_path))
+			{
+				exit(-1);
+			}
+
+			InjectDLL(dll_path.c_str(), processHandle);
 
 			if (pipe != NULL && pipe != INVALID_HANDLE_VALUE)
 			{
